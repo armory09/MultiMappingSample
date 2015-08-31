@@ -4,10 +4,9 @@ using System.Configuration;
 using System.Data;
 using System.Data.SqlClient;
 using System.Linq;
-using System.Runtime.InteropServices;
 using Dapper;
+using Dapper.Contrib.Extensions;
 using MultiMappingInDapper.Models;
-using MultiMappingInDapper;
 
 namespace MultiMappingInDapper
 {
@@ -21,19 +20,16 @@ namespace MultiMappingInDapper
 
             var query = "SELECT * from Student stu where id = 1 SELECT * from Enrollment enr where enr.StudentId in (SELECT id from Student stu where id = 1)";
 
-            //var mapped = conn.QueryMultiple(query)
-            //    .Map<Contact, Phone, int>(
-            //        contact => contact.ContactID,
-            //        phone => phone.ContactID,
-            //        ((contact, phones) => { contact.Phones = phones; })
+            //var mapped2 = conn.QueryMultiple(query)
+            //    .Map<Student, Enrollment, int>(
+            //        student => student.Id,
+            //        enrollment => enrollment.StudentId,
+            //        ((student, enrollments) => { student.Enrollments = enrollments; })
             //    );
 
-            var mapped2 = conn.QueryMultiple(query)
-                .Map<Student, Enrollment, int>(
-                    student => student.Id,
-                    enrollment => enrollment.StudentId,
-                    ((student, enrollments) => { student.Enrollments = enrollments; })
-                );
+            var studentLst = conn.Query<Student>("SELECT * FROM Student").ToList();         
+            var enroll = conn.Query<Enrollment>("SELECT * FROM Enrollment WHERE id=@id",new {id=studentLst.Select(s=>s.Id)}); 
+            var mapped2 = conn.Query<Course>("")   
 
             foreach (var student in mapped2)
             {
