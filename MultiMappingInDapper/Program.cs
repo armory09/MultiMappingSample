@@ -11,8 +11,12 @@ namespace MultiMappingInDapper
 {
     static class Program
     {
+        
+
         static void Main()
         {
+
+            
 
             Console.WriteLine("Multi mapping dapper");
             var id = Convert.ToInt32(Console.ReadLine());
@@ -31,12 +35,19 @@ namespace MultiMappingInDapper
                     enrollment => ctr = enrollment.StudentId,
                     course=>course.CourseId = ctr,
                     ((student, enrollments) => { student.Enrollments = enrollments; }),
-                    ((student, courses) => courses.ToList()
-                    .ForEach(s=> student.Enrollments.ToList()
-                    .ForEach(x=>x.Course = new Course
-                    {
-                        Title = s.Title
-                    }))));
+                    ((student, courses) =>
+                    {     
+
+                        foreach (var course in courses)
+                        {
+                            foreach (var enrollment in student.Enrollments)
+                            {
+                                enrollment.Course = new Course();
+                                enrollment.Course.Title = course.Title;
+
+                            }
+                        }
+                    }));
 
             //var course =
             //    conn.Query<Course>(
@@ -60,7 +71,7 @@ namespace MultiMappingInDapper
                 }
             }
             Console.ReadLine();
-        }
+        }  
 
         private static IDbConnection GetOpenConnection()
         {
