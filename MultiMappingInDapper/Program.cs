@@ -5,31 +5,48 @@ using System.Data;
 using System.Data.SqlClient;
 using System.Linq;
 using Dapper;
-using Dapper.Contrib.Extensions;
 using MultiMappingInDapper.Models;
 
 namespace MultiMappingInDapper
 {
-    static class Programaasdasd
+    static class Program
     {
-        static void Main(string[] args)
+        static void Main()
         {
-            Console.WriteLine("Multi mapping dapper");
 
+            Console.WriteLine("Multi mapping dapper");
+            var id = Convert.ToInt32(Console.ReadLine());
+
+           
             var conn = GetOpenConnection();
 
-            var query = "SELECT * from Student stu where id = 1 SELECT * from Enrollment enr where enr.StudentId in (SELECT id from Student stu where id = 1)";
+            const string query = "SELECT * from Student stu where StudentId = @id " +
+                                 "SELECT * from Enrollment enr where enr.StudentId in (SELECT StudentId from Student stu where StudentId = @id) " +
+                                 "SELECT * FROM Course cou WHERE cou.CourseId in (SELECT CourseId from Enrollment where StudentId = @id)";
 
-            //var mapped2 = conn.QueryMultiple(query)
-            //    .Map<Student, Enrollment, int>(
-            //        student => student.Id,
-            //        enrollment => enrollment.StudentId,
-            //        ((student, enrollments) => { student.Enrollments = enrollments; })
-            //    );
+            var ctr = 0;
+            var mapped2 = conn.QueryMultiple(query, new {id})
+                .Map<Student, Enrollment, Course, int>(
+                    student => student.StudentId,
+                    enrollment => ctr = enrollment.StudentId,
+                    course=>course.CourseId = ctr,
+                    ((student, enrollments) => { student.Enrollments = enrollments; }),
+                    ((student, courses) => courses.ToList()
+                    .ForEach(s=> student.Enrollments.ToList()
+                    .ForEach(x=>x.Course = new Course
+                    {
+                        Title = s.Title
+                    }))));
 
-            var studentLst = conn.Query<Student>("SELECT * FROM Student").ToList();         
-            var enroll = conn.Query<Enrollment>("SELECT * FROM Enrollment WHERE id=@id",new {id=studentLst.Select(s=>s.Id)}); 
-            var mapped2 = conn.Query<Course>("")   
+            //var course =
+            //    conn.Query<Course>(
+            //        "SELECT CourseId,Title FROM Course cou WHERE cou.CourseId in (SELECT CourseId from Enrollment where StudentId = @id)", new { id }).ToList();
+
+            //mapped2.ForEach(s => s.Enrollments.ToList().ForEach(x => x.Course = new Course
+            //{
+            //    Title = course.Find(p => p.CourseId == x.CourseId).Title
+            //    //course.Find(s => s.CourseId == enrollment.CourseId).Title
+            //}));
 
             foreach (var student in mapped2)
             {
@@ -37,7 +54,9 @@ namespace MultiMappingInDapper
 
                 foreach (var enrollment in student.Enrollments)
                 {
-                    Console.WriteLine("Grade: " + enrollment.Grade);
+
+                    Console.WriteLine("Grade: " + enrollment.Grade + " Course Title: " + enrollment.Course.Title);
+                    
                 }
             }
             Console.ReadLine();
@@ -71,6 +90,46 @@ namespace MultiMappingInDapper
                 if (childMap.TryGetValue(firstKey(item), out children))
                 {
                     addChildren(item, children);
+                }
+            }
+
+            return first.ToList();
+        }
+
+        public static IEnumerable<TFirst> Map<TFirst, TSecond, TThird, TKey>(
+            this SqlMapper.GridReader reader,
+            Func<TFirst, TKey> firstKey,
+            Func<TSecond, TKey> secondKey,
+            Func<TThird, TKey> thirdKey,
+            Action<TFirst, IEnumerable<TSecond>> addChildren,
+            Action<TFirst, IEnumerable<TThird>> addChildrenThird
+            )
+        {
+            var first = reader.Read<TFirst>().ToList();
+
+            var firstMap = reader
+                .Read<TSecond>()
+                .GroupBy(secondKey)
+                .ToDictionary(g => g.Key, g => g.AsEnumerable());
+            var secondMap = reader
+                .Read<TThird>()
+                .GroupBy(thirdKey)
+                .ToDictionary(g => g.Key, g => g.AsEnumerable());
+
+            foreach (var item in first)
+            {
+                IEnumerable<TSecond> second;
+                IEnumerable<TThird> third;
+
+                if (firstMap.TryGetValue(firstKey(item), out second))
+                {
+                    addChildren(item, second);
+                }
+
+                
+                if (secondMap.TryGetValue(firstKey(item), out third))
+                {
+                    addChildrenThird(item, third);
                 }
             }
 
