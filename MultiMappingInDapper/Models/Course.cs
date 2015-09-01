@@ -11,9 +11,6 @@ namespace MultiMappingInDapper.Models
         public string Title { get; set; }
         public int Credits { get; set; }
         public virtual IEnumerable<Enrollment> Enrollments { get; set; }
-        public IEnumerator GetEnumerator()
-        {
-            throw new System.NotImplementedException();
-        }
+       
     }
 }
