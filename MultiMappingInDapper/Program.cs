@@ -11,53 +11,47 @@ namespace MultiMappingInDapper
 {
     static class Program
     {
-        
+
 
         static void Main()
         {
 
-            
-
             Console.WriteLine("Multi mapping dapper");
             var id = Convert.ToInt32(Console.ReadLine());
 
-           
+
             var conn = GetOpenConnection();
 
-            const string query = "SELECT * from Student stu where StudentId = @id " +
-                                 "SELECT * from Enrollment enr where enr.StudentId in (SELECT StudentId from Student stu where StudentId = @id) " +
-                                 "SELECT * FROM Course cou WHERE cou.CourseId in (SELECT CourseId from Enrollment where StudentId = @id)";
+            const string query = "SELECT * from Student stu where StudentId = @id; " +
+                                 "SELECT * from Enrollment enr where enr.StudentId in (SELECT StudentId from Student stu where StudentId = @id); " +
+                                 "SELECT * FROM Course cou WHERE cou.CourseId in (SELECT CourseId from Enrollment where StudentId = @id);";
 
+            var enrollLst = new List<Enrollment>();
             var ctr = 0;
-            var mapped2 = conn.QueryMultiple(query, new {id})
+            var mapped2 = conn.QueryMultiple(query, new { id })
                 .Map<Student, Enrollment, Course, int>(
                     student => student.StudentId,
                     enrollment => ctr = enrollment.StudentId,
-                    course=>course.CourseId = ctr,
-                    ((student, enrollments) => { student.Enrollments = enrollments; }),
+                    course => course.CourseId = ctr,
+                    ((student, enrollments) =>
+                    {
+                        enrollLst = enrollments.ToList();
+                    }),
                     ((student, courses) =>
-                    {     
+                    {
+                        var ctrId = 0;
 
-                        foreach (var course in courses)
+                        courses.ToList().ForEach(cour =>
                         {
-                            foreach (var enrollment in student.Enrollments)
-                            {
-                                enrollment.Course = new Course();
-                                enrollment.Course.Title = course.Title;
+                            enrollLst[ctrId].Course = cour;
+                            ctrId++;
 
-                            }
-                        }
+                        });
+
+                        student.Enrollments = enrollLst;
                     }));
 
-            //var course =
-            //    conn.Query<Course>(
-            //        "SELECT CourseId,Title FROM Course cou WHERE cou.CourseId in (SELECT CourseId from Enrollment where StudentId = @id)", new { id }).ToList();
 
-            //mapped2.ForEach(s => s.Enrollments.ToList().ForEach(x => x.Course = new Course
-            //{
-            //    Title = course.Find(p => p.CourseId == x.CourseId).Title
-            //    //course.Find(s => s.CourseId == enrollment.CourseId).Title
-            //}));
 
             foreach (var student in mapped2)
             {
@@ -67,11 +61,11 @@ namespace MultiMappingInDapper
                 {
 
                     Console.WriteLine("Grade: " + enrollment.Grade + " Course Title: " + enrollment.Course.Title);
-                    
+
                 }
             }
             Console.ReadLine();
-        }  
+        }
 
         private static IDbConnection GetOpenConnection()
         {
@@ -136,8 +130,6 @@ namespace MultiMappingInDapper
                 {
                     addChildren(item, second);
                 }
-
-                
                 if (secondMap.TryGetValue(firstKey(item), out third))
                 {
                     addChildrenThird(item, third);
